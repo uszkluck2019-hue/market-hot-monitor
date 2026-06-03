@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>市场热度监控</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #fff;
+            font-size: 28px;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .time-range-selector {
+            text-align: center;
+            margin: 10px 0;
+        }
+        .time-btn {
+            padding: 8px 20px;
+            margin: 0 5px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.08);
+            color: #b0b0b0;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        .time-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: #e0e0e0;
+        }
+        .time-btn.active {
+            background: rgba(74, 144, 217, 0.6);
+            color: #ffffff;
+            border-color: rgba(74, 144, 217, 0.8);
+        }
+
+        .stats-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            padding: 10px 15px;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card.crowd {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .stat-card.spread {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        }
+
+        .stat-card.capital {
+            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+        }
+
+        .stat-label {
+            font-size: 16px;
+            font-weight: bold;
+            opacity: 0.9;
+            display: inline;
+        }
+
+        .stat-value {
+            font-size: 16px;
+            display: inline;
+        }
+
+        .stat-sub {
+            font-size: 11px;
+            font-weight: normal;
+            opacity: 0.85;
+        }
+
+        .update-time {
+            text-align: center;
+            color: #888;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+
+        .loading {
+            text-align: center;
+            color: #888;
+            padding: 20px;
+        }
+
+        .legend-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        .legend-bar {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 市场热度变化趋势图</h1>
+
+        <div class="chart-container">
+            <div class="time-range-selector">
+                <button class="time-btn" onclick="setTimeRange('1y', this)">近1年</button>
+                <button class="time-btn" onclick="setTimeRange('3m', this)">近3月</button>
+                <button class="time-btn active" onclick="setTimeRange('1m', this)">近1月</button>
+            </div>
+            <div id="chart" style="height: 550px;">
+                <div class="loading">正在加载数据...</div>
+            </div>
+        </div>
+
+        <div class="stats-container">
+            <div class="stat-card crowd">
+                <span class="stat-label">🦠 大盘拥挤度：</span><span class="stat-value" id="crowd-value">--</span>
+            </div>
+            <div class="stat-card spread">
+                <span class="stat-label">📊 股债利差：</span><span class="stat-value" id="spread-value">--</span><span class="stat-sub" id="spread-status">--</span>
+            </div>
+            <div class="stat-card capital">
+                <span class="stat-label">📈 总市值/GDP：</span><span class="stat-value" id="capital-value">--</span>
+            </div>
+        </div>
+
+        <div class="update-time">
+            更新时间: <span id="update-time">--</span>
+        </div>
+    </div>
+
+    <script>
+        // ========== 全局数据（从 data.json 动态加载）==========
+        let heatData = [];
+        let currentTimeRange = '1m';
+
+        // ========== 全局 Layout 和 Config ==========
+        const shapes = [
+            {type: 'rect', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 0, y1: 22, fillcolor: 'rgba(0, 150, 255, 0.12)', line: {width: 0}, layer: 'below'},
+            {type: 'rect', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 22, y1: 40, fillcolor: 'rgba(100, 180, 255, 0.12)', line: {width: 0}, layer: 'below'},
+            {type: 'rect', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 40, y1: 50, fillcolor: 'rgba(100, 220, 100, 0.12)', line: {width: 0}, layer: 'below'},
+            {type: 'rect', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 50, y1: 65, fillcolor: 'rgba(255, 180, 0, 0.12)', line: {width: 0}, layer: 'below'},
+            {type: 'rect', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 65, y1: 80, fillcolor: 'rgba(255, 100, 100, 0.12)', line: {width: 0}, layer: 'below'},
+            {type: 'rect', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 80, y1: 100, fillcolor: 'rgba(255, 50, 50, 0.12)', line: {width: 0}, layer: 'below'},
+            {type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 22, y1: 22, line: {color: '#00BFFF', width: 2, dash: 'solid'}},
+            {type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 40, y1: 40, line: {color: '#8080FF', width: 1.5, dash: 'dash'}},
+            {type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 50, y1: 50, line: {color: '#40C080', width: 1.5, dash: 'dash'}},
+            {type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 65, y1: 65, line: {color: 'black', width: 1.5, dash: 'solid'}},
+            {type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 80, y1: 80, line: {color: '#FF4500', width: 2, dash: 'solid'}}
+        ];
+
+        const baseLayout = {
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(30, 30, 50, 0.25)',
+            xaxis: {title: '', tickfont: {color: '#888'}, gridcolor: 'rgba(255,255,255,0.1)', tickangle: -45, type: 'category'},
+            yaxis: {
+                title: {text: '热度指数', font: {color: '#888', size: 14}},
+                tickfont: {color: '#888', size: 12},
+                gridcolor: 'rgba(255,255,255,0.1)',
+                range: [0, 100],
+                tickvals: [11, 31, 45, 57.5, 72.5, 90],
+                ticktext: ['🦞极寒', '❄️寒', '🔥温', '☀️热', '⚠️过热', '💥极热'],
+                showgrid: false
+            },
+            yaxis2: {
+                title: {text: '成交额', font: {color: '#888', size: 12}},
+                tickfont: {color: '#888', size: 11},
+                gridcolor: 'rgba(255,255,255,0.05)',
+                overlaying: 'y',
+                side: 'right',
+                range: [0, 4],
+                tickvals: [0, 1, 2, 3, 4],
+                ticktext: ['0万亿', '1万亿', '2万亿', '3万亿', '4万亿'],
+                showgrid: false
+            },
+            margin: {l: 60, r: 60, t: 30, b: 80},
+            legend: {orientation: 'h', yanchor: 'bottom', y: 1.02, xanchor: 'center', x: 0.5, font: {color: '#ccc'}},
+            hoverlabel: {bgcolor: 'rgba(50, 50, 70, 0.95)', bordercolor: '#666', font: {color: '#fff', size: 13}},
+            hovermode: 'x unified',
+            font: {color: '#ccc'}
+        };
+
+        const config = {responsive: true, displayModeBar: false};
+
+        // ========== 情绪颜色映射 ==========
+        function getMoodColor(mood) {
+            const colors = {
+                '极寒': '#ff6b6b',
+                '偏寒': '#4dabf7',
+                '温': '#69db7c',
+                '热': '#69db7c',
+                '偏热': '#ffa94d',
+                '过热': '#ffa94d',
+                '极热': '#ff4757'
+            };
+            return colors[mood] || '#888';
+        }
+
+        // ========== 创建图表 Trace ==========
+        function createChartTraces(data) {
+            const dates = data.map(d => d.date);
+            const heatValues = data.map(d => d.heat);
+            const amountValues = data.map(d => d.amount || 0);
+            const moods = data.map(d => d.mood);
+
+            const trace1 = {
+                x: dates,
+                y: heatValues,
+                type: 'scatter',
+                mode: 'lines+markers+text',
+                name: '热度指数',
+                line: {color: '#00FF00', width: 3},
+                marker: {size: 8, color: moods.map(m => getMoodColor(m))},
+                text: moods,
+                textposition: 'top center',
+                textfont: {size: 11},
+                customdata: data.map(d => [d.heat, d.mood]),
+                hovertemplate: '<b>%{x}</b><br>热度: %{customdata[0]}<br>状态: %{customdata[1]}<extra></extra>'
+            };
+
+            const trace2 = {
+                x: dates,
+                y: amountValues,
+                type: 'bar',
+                name: '成交额',
+                marker: {
+                    color: amountValues.map(v => v > 0 ? 'rgba(135, 206, 250, 0.3)' : 'rgba(135, 206, 250, 0.1)'),
+                    line: {width: 0}
+                },
+                hovertemplate: '成交额: %{y}万亿<extra></extra>',
+                xaxis: 'x',
+                yaxis: 'y2'
+            };
+
+            return [trace1, trace2];
+        }
+
+        // ========== 渲染图表 ==========
+        function renderChart(data) {
+            const layout = Object.assign({}, baseLayout, {shapes: shapes});
+            Plotly.newPlot('chart', createChartTraces(data), layout, config);
+        }
+
+        // ========== 初始化图表（根据时间范围过滤）==========
+        function initChart(data) {
+            const now = new Date();
+            const startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+            const filteredData = data.filter(d => new Date(d.date) >= startDate);
+            renderChart(filteredData);
+        }
+
+        // ========== 时间范围切换 ==========
+        function setTimeRange(range, btn) {
+            currentTimeRange = range;
+
+            // 更新按钮状态
+            document.querySelectorAll('.time-btn').forEach(b => {
+                b.classList.remove('active');
+            });
+            if (btn) btn.classList.add('active');
+
+            // 过滤数据
+            const now = new Date();
+            let startDate;
+
+            if (range === '1y') {
+                startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+            } else if (range === '3m') {
+                startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+            } else if (range === '1m') {
+                startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+            }
+
+            const filteredData = heatData.filter(d => new Date(d.date) >= startDate);
+            renderChart(filteredData);
+        }
+
+        // ========== 更新统计数据 ==========
+        async function updateStats() {
+            try {
+                const response = await fetch('market_stats.json?t=' + Date.now());
+                const data = await response.json();
+
+                document.getElementById('crowd-value').textContent = data.stats.congestion.toFixed(2) + '%';
+                document.getElementById('spread-value').textContent = data.stats.spread.toFixed(2) + '%';
+                document.getElementById('spread-status').innerHTML = '🔵 低估区域 - 机会';
+                document.getElementById('capital-value').textContent = data.stats.gdp.toFixed(2) + '%';
+                document.getElementById('update-time').textContent = data.stats.update_time;
+            } catch (e) {
+                console.log('使用默认数据', e);
+                document.getElementById('crowd-value').textContent = '44.92%';
+                document.getElementById('spread-value').textContent = '4.89%';
+                document.getElementById('spread-status').innerHTML = '🔵 低估区域 - 机会';
+                document.getElementById('capital-value').textContent = '89.37%';
+                document.getElementById('update-time').textContent = '--';
+            }
+        }
+
+        // ========== 加载数据 ==========
+        async function loadData() {
+            try {
+                const response = await fetch('data.json?t=' + Date.now());
+                const data = await response.json();
+                heatData = data.market_heat || [];
+                initChart(heatData);
+                updateStats();
+            } catch (e) {
+                console.error('加载 data.json 失败:', e);
+                document.getElementById('chart').innerHTML =
+                    '<div class="loading">数据加载失败，请稍后刷新页面</div>';
+            }
+        }
+
+        // ========== 启动 ==========
+        (function() {
+            loadData();
+
+            // 每 5 分钟自动刷新数据
+            setInterval(loadData, 5 * 60 * 1000);
+        })();
+    </script>
+</body>
+</html>
