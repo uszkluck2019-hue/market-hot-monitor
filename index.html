@@ -192,10 +192,35 @@
 
         <div class="update-time">
             更新时间: <span id="update-time">--</span>
+            <button id="refresh-btn" onclick="triggerUpdate()" style="margin-left:15px;padding:4px 12px;background:rgba(74,144,217,0.6);border:none;color:#fff;border-radius:4px;cursor:pointer;font-size:12px;">🔄 手动更新数据</button>
+            <span id="refresh-status" style="margin-left:10px;color:#888;font-size:12px;"></span>
         </div>
     </div>
 
     <script>
+        const FC_URL = 'https://fetch-all-mibdbaaxae.cn-hangzhou.fcapp.run';
+
+        function triggerUpdate() {
+            const btn = document.getElementById('refresh-btn');
+            const status = document.getElementById('refresh-status');
+            btn.disabled = true;
+            btn.textContent = '更新中...';
+            status.textContent = '';
+
+            fetch(FC_URL)
+                .then(r => r.text())
+                .then(() => {
+                    status.textContent = '✅ 更新成功！';
+                    btn.textContent = '🔄 手动更新数据';
+                    btn.disabled = false;
+                    setTimeout(() => location.reload(), 3000);
+                })
+                .catch(e => {
+                    status.textContent = '❌ 更新失败: ' + e.message;
+                    btn.textContent = '🔄 手动更新数据';
+                    btn.disabled = false;
+                });
+        }
         // ========== 全局数据（从 data.json 动态加载）==========
         let heatData = [];
         let currentTimeRange = '1m';
