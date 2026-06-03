@@ -369,7 +369,7 @@
         // ========== 更新统计数据 ==========
         async function updateStats() {
             try {
-                const response = await fetch('market_stats.json?t=' + Date.now());
+                const response = await fetch('https://raw.githubusercontent.com/uszkluck2019-hue/market-hot-monitor/main/market_stats.json?t=' + Date.now());
                 const data = await response.json();
 
                 document.getElementById('crowd-value').textContent = data.stats.congestion.toFixed(2) + '%';
@@ -390,7 +390,7 @@
         // ========== 加载数据 ==========
         async function loadData() {
             try {
-                const response = await fetch('data.json?t=' + Date.now());
+                const response = await fetch('https://raw.githubusercontent.com/uszkluck2019-hue/market-hot-monitor/main/data.json?t=' + Date.now());
                 const data = await response.json();
                 heatData = data.market_heat || [];
                 initChart(heatData);
